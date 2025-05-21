@@ -1,26 +1,195 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import axios from 'axios';
+import { StyleSheet, Text, View } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+// Import the LoginScreen we created
+import LoginScreen from './src/screens/auth/LoginScreen';
+// Import the navigation reference
+import { navigationRef } from './src/navigation/navigationRef';
+
+// Define our stack navigator types
+type AuthStackParamList = {
+  Login: undefined;
+  Signup: undefined;
+  ForgotPassword: undefined;
+};
+
+type OnboardingStackParamList = {
+  DefineGoal: undefined;
+  ConnectToAppleHealth: undefined;
+  UserInfo: undefined;
+  WorkoutsPerWeek: undefined;
+  BodyFat: undefined;
+  NutritionalGoals: undefined;
+  Budget: undefined;
+  Allergies: undefined;
+  CompleteOnboarding: undefined;
+};
+
+type RootStackParamList = {
+  Auth: undefined;
+  Onboarding: undefined;
+  Main: undefined;
+};
+
+type MainTabParamList = {
+  Dashboard: undefined;
+  Plan: undefined;
+  Explore: undefined;
+  Pantry: undefined;
+};
+
+// Create our navigators
+const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+const MainTab = createBottomTabNavigator<MainTabParamList>();
+
+// Placeholder components for our screens
+// Using the LoginScreen we created instead of the placeholder
+// const LoginScreen = () => (
+//   <View style={styles.screenContainer}><Text>Login Screen</Text></View>
+// );
+
+const SignupScreen = () => (
+  <View style={styles.screenContainer}><Text>Signup Screen</Text></View>
+);
+
+const ForgotPasswordScreen = () => (
+  <View style={styles.screenContainer}><Text>Forgot Password Screen</Text></View>
+);
+
+// Onboarding screens
+const DefineGoalScreen = () => (
+  <View style={styles.screenContainer}><Text>Define Goal Screen</Text></View>
+);
+
+const ConnectToAppleHealthScreen = () => (
+  <View style={styles.screenContainer}><Text>Connect to Apple Health Screen</Text></View>
+);
+
+const UserInfoScreen = () => (
+  <View style={styles.screenContainer}><Text>User Info Screen</Text></View>
+);
+
+const WorkoutsPerWeekScreen = () => (
+  <View style={styles.screenContainer}><Text>Workouts Per Week Screen</Text></View>
+);
+
+const BodyFatScreen = () => (
+  <View style={styles.screenContainer}><Text>Body Fat Screen</Text></View>
+);
+
+const NutritionalGoalsScreen = () => (
+  <View style={styles.screenContainer}><Text>Nutritional Goals Screen</Text></View>
+);
+
+const BudgetScreen = () => (
+  <View style={styles.screenContainer}><Text>Budget Screen</Text></View>
+);
+
+const AllergiesScreen = () => (
+  <View style={styles.screenContainer}><Text>Allergies Screen</Text></View>
+);
+
+const CompleteOnboardingScreen = () => (
+  <View style={styles.screenContainer}><Text>Complete Onboarding Screen</Text></View>
+);
+
+// Main tab screens
+const DashboardScreen = () => (
+  <View style={styles.screenContainer}><Text>Dashboard Screen</Text></View>
+);
+
+const PlanScreen = () => (
+  <View style={styles.screenContainer}><Text>Plan Screen (Meal Planning)</Text></View>
+);
+
+const ExploreScreen = () => (
+  <View style={styles.screenContainer}><Text>Explore Screen (Meal Discovery)</Text></View>
+);
+
+const PantryScreen = () => (
+  <View style={styles.screenContainer}><Text>Pantry Screen</Text></View>
+);
+
+// Auth Navigator
+const AuthNavigator = () => (
+  <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+    <AuthStack.Screen name="Login" component={LoginScreen} />
+    <AuthStack.Screen name="Signup" component={SignupScreen} />
+    <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+  </AuthStack.Navigator>
+);
+
+// Onboarding Navigator
+const OnboardingNavigator = () => (
+  <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>
+    <OnboardingStack.Screen name="DefineGoal" component={DefineGoalScreen} />
+    <OnboardingStack.Screen name="ConnectToAppleHealth" component={ConnectToAppleHealthScreen} />
+    <OnboardingStack.Screen name="UserInfo" component={UserInfoScreen} />
+    <OnboardingStack.Screen name="WorkoutsPerWeek" component={WorkoutsPerWeekScreen} />
+    <OnboardingStack.Screen name="BodyFat" component={BodyFatScreen} />
+    <OnboardingStack.Screen name="NutritionalGoals" component={NutritionalGoalsScreen} />
+    <OnboardingStack.Screen name="Budget" component={BudgetScreen} />
+    <OnboardingStack.Screen name="Allergies" component={AllergiesScreen} />
+    <OnboardingStack.Screen name="CompleteOnboarding" component={CompleteOnboardingScreen} />
+  </OnboardingStack.Navigator>
+);
+
+// Main Tab Navigator
+const MainNavigator = () => (
+  <MainTab.Navigator screenOptions={{ headerShown: false }}>
+    <MainTab.Screen name="Dashboard" component={DashboardScreen} />
+    <MainTab.Screen name="Plan" component={PlanScreen} />
+    <MainTab.Screen name="Explore" component={ExploreScreen} />
+    <MainTab.Screen name="Pantry" component={PantryScreen} />
+  </MainTab.Navigator>
+);
+
+// Main App
 const App = () => {
-  const [message, setMessage] = useState<string>("Loading...");
-
+  // We'll simulate not being authenticated initially
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isOnboarded, setIsOnboarded] = useState(false);
+  
+  // Normally this would come from a token check or auth service
+  // For demo purposes we'll just use a delay to simulate an auth check
   useEffect(() => {
-    axios.get('http://localhost:8000') // Update this if using an emulator
-      .then(response => setMessage(response.data.message))
-      .catch(error => setMessage("Error connecting to backend"));
+    // This is just for demonstration - you would check for auth tokens here
+    setTimeout(() => {
+      setIsAuthenticated(false);  // Set to true to bypass auth screens
+      setIsOnboarded(false);     // Set to true to bypass onboarding
+    }, 1000);
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>{message}</Text>
-    </View>
+    <SafeAreaProvider>
+      <NavigationContainer ref={navigationRef}>
+        <RootStack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            <RootStack.Screen name="Auth" component={AuthNavigator} />
+          ) : !isOnboarded ? (
+            <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />
+          ) : (
+            <RootStack.Screen name="Main" component={MainNavigator} />
+          )}
+        </RootStack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  text: { fontSize: 20 }
+  screenContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#fff'
+  },
 });
 
 export default App;
