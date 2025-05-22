@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,18 +19,20 @@ import ApiService from '../../services/api';
 
 // Define the navigation props
 type AuthStackParamList = {
-  Login: undefined;
+  Login: { animation?: string } | undefined;
   Signup: undefined;
   ForgotPassword: undefined;
 };
 
-type LoginScreenProps = {
-  navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
+type SignupScreenProps = {
+  navigation: NativeStackNavigationProp<AuthStackParamList, 'Signup'>;
 };
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [email, setEmail] = useState<string>('');
+  const [fullName, setFullName] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   }, [navigation]);
 
   const validateInputs = (): boolean => {
+    // Full name validation
+    if (!fullName.trim()) {
+      setError('Full name is required');
+      return false;
+    }
+    
     // Email validation
     if (!email.trim()) {
       setError('Email is required');
@@ -68,10 +75,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       return false;
     }
     
+    // Confirm password validation
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    
     return true;
   };
 
-  const handleLogin = async () => {
+  const handleSignup = async () => {
     // Validate inputs
     if (!validateInputs()) return;
 
@@ -79,38 +92,49 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       setIsLoading(true);
       setError(null);
 
-      // Attempt to login using API service
+      // Attempt to signup using API service
       try {
-        const response = await ApiService.auth.login(email, password);
+        const response = await ApiService.auth.signup({
+          email,
+          password,
+          full_name: fullName,
+        });
         
         // In a real app, you would store the tokens using secure storage
-        console.log('Login successful', response.data);
+        console.log('Signup successful', response.data);
         
-        // TODO: Store tokens and navigate to the main app
+        // Navigate to onboarding flow or main app
+        Alert.alert(
+          "Account Created",
+          "Your account has been created successfully!",
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.navigate('Login'),
+            }
+          ]
+        );
         
       } catch (apiError: any) {
         // Handle specific API errors
         if (apiError.response) {
           // Server responded with a status code outside of 2xx range
           switch (apiError.response.status) {
-            case 401:
-              setError('Invalid email or password');
+            case 400:
+              setError(apiError.response.data?.detail || 'Email is already registered');
               break;
-            case 404:
-              setError('Account not found');
-              break;
-            case 429:
-              setError('Too many login attempts. Please try again later.');
+            case 422:
+              setError('Invalid input data');
               break;
             default:
-              setError('Login failed. Please try again.');
+              setError('Signup failed. Please try again.');
           }
         } else if (apiError.request) {
           // No response received
           setError('Server not responding. Check your connection.');
         } else {
           // Something else happened while setting up the request
-          setError('Login error. Please try again.');
+          setError('Signup error. Please try again.');
         }
         console.error('API error:', apiError);
       }
@@ -119,26 +143,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     } catch (err) {
       setIsLoading(false);
       setError('An unexpected error occurred. Please try again.');
-      console.error('Login error:', err);
+      console.error('Signup error:', err);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth login
-    Alert.alert('Google Login', 'Google login not implemented yet');
-  };
-
-  const handleAppleLogin = () => {
-    // TODO: Implement Apple OAuth login
-    Alert.alert('Apple Login', 'Apple login not implemented yet');
-  };
-
-  const navigateToSignup = () => {
-    navigation.navigate('Signup');
-  };
-
-  const navigateToForgotPassword = () => {
-    navigation.navigate('ForgotPassword');
+  const navigateToLogin = () => {
+    navigation.goBack();
   };
 
   return (
@@ -153,10 +163,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="interactive"
         >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.logo}>NutriPlan</Text>
-            <Text style={styles.tagline}>Your Nutrition & Meal Planning Solution</Text>
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={navigateToLogin}
+          >
+            <Text style={styles.backButtonText}>← Back to Login</Text>
+          </TouchableOpacity>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Sign up to get started with NutriPlan</Text>
           </View>
 
           {/* Form */}
@@ -166,6 +184,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
+
+            <InputField
+              label="Full Name"
+              value={fullName}
+              onChangeText={(text) => {
+                setFullName(text);
+                setError(null); // Clear error when user types
+              }}
+              placeholder="Enter your full name"
+              autoCapitalize="words"
+              textContentType="name"
+              autoFocus={true}
+              returnKeyType="next"
+            />
 
             <InputField
               label="Email"
@@ -179,7 +211,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               autoCapitalize="none"
               autoComplete="email"
               textContentType="emailAddress"
-              autoFocus={true}
               returnKeyType="next"
             />
 
@@ -190,57 +221,42 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 setPassword(text);
                 setError(null); // Clear error when user types
               }}
-              placeholder="Enter your password"
+              placeholder="Create a password (min 6 characters)"
               secureTextEntry
               autoCapitalize="none"
-              textContentType="password"
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
+              textContentType="newPassword"
+              returnKeyType="next"
             />
 
-            <TouchableOpacity
-              onPress={navigateToForgotPassword}
-              style={styles.forgotPasswordLink}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-            </TouchableOpacity>
+            <InputField
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                setError(null); // Clear error when user types
+              }}
+              placeholder="Confirm your password"
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType="newPassword"
+              returnKeyType="done"
+              onSubmitEditing={handleSignup}
+            />
 
             <Button
-              title="Log In"
-              onPress={handleLogin}
+              title="Create Account"
+              onPress={handleSignup}
               loading={isLoading}
               fullWidth
-              style={styles.loginButton}
-            />
-
-            <View style={styles.dividerContainer}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.divider} />
-            </View>
-
-            <Button
-              title="Continue with Google"
-              onPress={handleGoogleLogin}
-              variant="outline"
-              fullWidth
-              style={styles.socialButton}
-            />
-
-            <Button
-              title="Continue with Apple"
-              onPress={handleAppleLogin}
-              variant="outline"
-              fullWidth
-              style={styles.socialButton}
+              style={styles.signupButton}
             />
           </View>
 
-          {/* Sign up link */}
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>Don't have an account?</Text>
-            <TouchableOpacity onPress={navigateToSignup}>
-              <Text style={styles.signupLink}>Sign up</Text>
+          {/* Login link */}
+          <View style={styles.loginContainer}>
+            <Text style={styles.loginText}>Already have an account?</Text>
+            <TouchableOpacity onPress={navigateToLogin}>
+              <Text style={styles.loginLink}>Log in</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -263,17 +279,24 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.xl,
     paddingBottom: theme.spacing.lg,
   },
-  logoContainer: {
-    alignItems: 'center',
+  backButton: {
+    marginBottom: theme.spacing.lg,
+  },
+  backButtonText: {
+    fontSize: theme.typography.bodyText.regular,
+    color: theme.colors.primary,
+    fontWeight: theme.typography.fontWeight.medium as any,
+  },
+  header: {
     marginBottom: theme.spacing.xl,
   },
-  logo: {
-    fontSize: theme.typography.headingSizes.h1,
+  title: {
+    fontSize: theme.typography.headingSizes.h3,
     fontWeight: theme.typography.fontWeight.bold as any,
-    color: theme.colors.primary,
+    color: theme.colors.textPrimary,
     marginBottom: theme.spacing.xs,
   },
-  tagline: {
+  subtitle: {
     fontSize: theme.typography.bodyText.regular,
     color: theme.colors.textSecondary,
   },
@@ -290,50 +313,24 @@ const styles = StyleSheet.create({
     color: theme.colors.error,
     fontSize: theme.typography.bodyText.small,
   },
-  forgotPasswordLink: {
-    alignSelf: 'flex-end',
-    marginBottom: theme.spacing.md,
+  signupButton: {
+    marginTop: theme.spacing.lg,
   },
-  forgotPasswordText: {
-    color: theme.colors.primary,
-    fontSize: theme.typography.bodyText.small,
-  },
-  loginButton: {
-    marginBottom: theme.spacing.lg,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: theme.colors.neutralDark,
-  },
-  dividerText: {
-    marginHorizontal: theme.spacing.md,
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.bodyText.small,
-  },
-  socialButton: {
-    marginBottom: theme.spacing.md,
-  },
-  signupContainer: {
+  loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  signupText: {
+  loginText: {
     fontSize: theme.typography.bodyText.regular,
     color: theme.colors.textSecondary,
     marginRight: theme.spacing.xs,
   },
-  signupLink: {
+  loginLink: {
     fontSize: theme.typography.bodyText.regular,
     color: theme.colors.primary,
     fontWeight: theme.typography.fontWeight.bold as any,
   },
 });
 
-export default LoginScreen; 
+export default SignupScreen; 

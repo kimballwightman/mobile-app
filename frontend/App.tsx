@@ -5,14 +5,29 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Import the LoginScreen we created
+// Import auth screens
 import LoginScreen from './src/screens/auth/LoginScreen';
+import SignupScreen from './src/screens/auth/SignupScreen';
+import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
+
+// Import main tab screens
+import DashboardScreen from './src/screens/dashboard/DashboardScreen';
+import ExploreScreen from './src/screens/explore/ExploreScreen';
+import PlanScreen from './src/screens/plan/PlanScreen';
+import PantryScreen from './src/screens/pantry/PantryScreen';
+
+// Import components
+import TabBarIcon from './src/components/TabBarIcon';
+
 // Import the navigation reference
 import { navigationRef } from './src/navigation/navigationRef';
 
+// Import theme
+import theme from './src/styles/theme';
+
 // Define our stack navigator types
 type AuthStackParamList = {
-  Login: undefined;
+  Login: { animation?: string } | undefined;
   Signup: undefined;
   ForgotPassword: undefined;
 };
@@ -48,21 +63,7 @@ const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
-// Placeholder components for our screens
-// Using the LoginScreen we created instead of the placeholder
-// const LoginScreen = () => (
-//   <View style={styles.screenContainer}><Text>Login Screen</Text></View>
-// );
-
-const SignupScreen = () => (
-  <View style={styles.screenContainer}><Text>Signup Screen</Text></View>
-);
-
-const ForgotPasswordScreen = () => (
-  <View style={styles.screenContainer}><Text>Forgot Password Screen</Text></View>
-);
-
-// Onboarding screens
+// Placeholder components for our onboarding screens
 const DefineGoalScreen = () => (
   <View style={styles.screenContainer}><Text>Define Goal Screen</Text></View>
 );
@@ -99,29 +100,33 @@ const CompleteOnboardingScreen = () => (
   <View style={styles.screenContainer}><Text>Complete Onboarding Screen</Text></View>
 );
 
-// Main tab screens
-const DashboardScreen = () => (
-  <View style={styles.screenContainer}><Text>Dashboard Screen</Text></View>
-);
-
-const PlanScreen = () => (
-  <View style={styles.screenContainer}><Text>Plan Screen (Meal Planning)</Text></View>
-);
-
-const ExploreScreen = () => (
-  <View style={styles.screenContainer}><Text>Explore Screen (Meal Discovery)</Text></View>
-);
-
-const PantryScreen = () => (
-  <View style={styles.screenContainer}><Text>Pantry Screen</Text></View>
-);
-
 // Auth Navigator
 const AuthNavigator = () => (
-  <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-    <AuthStack.Screen name="Login" component={LoginScreen} />
-    <AuthStack.Screen name="Signup" component={SignupScreen} />
-    <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+  <AuthStack.Navigator 
+    screenOptions={{ 
+      headerShown: false,
+      animation: 'slide_from_right',
+      gestureEnabled: true,
+      gestureDirection: 'horizontal',
+      // This ensures transitions are consistent
+      animationTypeForReplace: 'push',
+    }}
+  >
+    <AuthStack.Screen 
+      name="Login" 
+      component={LoginScreen} 
+      options={{
+        // No specific animation needed for initial screen
+      }}
+    />
+    <AuthStack.Screen 
+      name="Signup" 
+      component={SignupScreen} 
+    />
+    <AuthStack.Screen 
+      name="ForgotPassword" 
+      component={ForgotPasswordScreen} 
+    />
   </AuthStack.Navigator>
 );
 
@@ -142,11 +147,51 @@ const OnboardingNavigator = () => (
 
 // Main Tab Navigator
 const MainNavigator = () => (
-  <MainTab.Navigator screenOptions={{ headerShown: false }}>
-    <MainTab.Screen name="Dashboard" component={DashboardScreen} />
-    <MainTab.Screen name="Plan" component={PlanScreen} />
-    <MainTab.Screen name="Explore" component={ExploreScreen} />
-    <MainTab.Screen name="Pantry" component={PantryScreen} />
+  <MainTab.Navigator 
+    screenOptions={{ 
+      headerShown: false,
+      tabBarStyle: styles.tabBar,
+      tabBarActiveTintColor: theme.colors.primary,
+      tabBarInactiveTintColor: theme.colors.textSecondary,
+      tabBarShowLabel: false, // Hide default labels as we use custom ones in TabBarIcon
+    }}
+  >
+    <MainTab.Screen 
+      name="Dashboard" 
+      component={DashboardScreen} 
+      options={{
+        tabBarIcon: ({ focused }) => (
+          <TabBarIcon name="Dashboard" focused={focused} />
+        ),
+      }}
+    />
+    <MainTab.Screen 
+      name="Plan" 
+      component={PlanScreen} 
+      options={{
+        tabBarIcon: ({ focused }) => (
+          <TabBarIcon name="Plan" focused={focused} />
+        ),
+      }}
+    />
+    <MainTab.Screen 
+      name="Explore" 
+      component={ExploreScreen} 
+      options={{
+        tabBarIcon: ({ focused }) => (
+          <TabBarIcon name="Explore" focused={focused} />
+        ),
+      }}
+    />
+    <MainTab.Screen 
+      name="Pantry" 
+      component={PantryScreen} 
+      options={{
+        tabBarIcon: ({ focused }) => (
+          <TabBarIcon name="Pantry" focused={focused} />
+        ),
+      }}
+    />
   </MainTab.Navigator>
 );
 
@@ -161,8 +206,9 @@ const App = () => {
   useEffect(() => {
     // This is just for demonstration - you would check for auth tokens here
     setTimeout(() => {
-      setIsAuthenticated(false);  // Set to true to bypass auth screens
-      setIsOnboarded(false);     // Set to true to bypass onboarding
+      // For development, set to true to bypass auth screens and see the main app
+      setIsAuthenticated(true);  
+      setIsOnboarded(true);     
     }, 1000);
   }, []);
 
@@ -189,6 +235,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center',
     backgroundColor: '#fff'
+  },
+  tabBar: {
+    height: 60,
+    paddingBottom: 5,
+    paddingTop: 5,
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.neutralDark,
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    // Elevation for Android
+    elevation: 4,
   },
 });
 

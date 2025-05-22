@@ -1,1 +1,0 @@
-docs/phase_1/event/onboarding/event.select_weight.md

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -8,6 +8,9 @@ import {
   TextStyle,
   TouchableOpacity,
   TextInputProps,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import theme from '../styles/theme';
 
@@ -43,6 +46,16 @@ const InputField: React.FC<InputFieldProps> = ({
 }) => {
   const [isFocused, setIsFocused] = useState<boolean>(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(!secureTextEntry);
+  const inputRef = useRef<TextInput>(null);
+
+  // Force focus on mount if autoFocus is true
+  useEffect(() => {
+    if (textInputProps.autoFocus && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [textInputProps.autoFocus]);
 
   const handleFocus = () => {
     setIsFocused(true);
@@ -60,6 +73,19 @@ const InputField: React.FC<InputFieldProps> = ({
 
   const togglePasswordVisibility = () => {
     setIsPasswordVisible(!isPasswordVisible);
+  };
+
+  const focusInput = () => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      // Explicitly show keyboard for iOS
+      if (Platform.OS === 'ios') {
+        setTimeout(() => {
+          Keyboard.dismiss();
+          inputRef.current?.focus();
+        }, 50);
+      }
+    }
   };
 
   // Get styles for the input container based on state
@@ -117,37 +143,44 @@ const InputField: React.FC<InputFieldProps> = ({
         <Text style={[baseStyles.label, labelStyle]}>{label}</Text>
       )}
 
-      <View style={getInputContainerStyle()}>
-        {leftIcon && (
-          <View style={baseStyles.leftIconContainer}>
-            {leftIcon}
-          </View>
-        )}
+      <TouchableWithoutFeedback onPress={focusInput}>
+        <View style={getInputContainerStyle()}>
+          {leftIcon && (
+            <View style={baseStyles.leftIconContainer}>
+              {leftIcon}
+            </View>
+          )}
 
-        <TextInput
-          {...textInputProps}
-          style={getInputStyles()}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          secureTextEntry={secureTextEntry && !isPasswordVisible}
-          placeholderTextColor={theme.colors.textSecondary}
-        />
+          <TextInput
+            {...textInputProps}
+            ref={inputRef}
+            style={getInputStyles()}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            secureTextEntry={secureTextEntry && !isPasswordVisible}
+            placeholderTextColor={theme.colors.textSecondary}
+            editable={true}
+            keyboardAppearance="light"
+            blurOnSubmit={false}
+            showSoftInputOnFocus={true}
+          />
 
-        {(rightIcon || secureTextEntry) && (
-          <TouchableOpacity 
-            style={baseStyles.rightIconContainer}
-            onPress={secureTextEntry ? togglePasswordVisibility : onRightIconPress}
-          >
-            {secureTextEntry ? (
-              <Text style={baseStyles.eyeIcon}>
-                {isPasswordVisible ? '👁️' : '👁️‍🗨️'}
-              </Text>
-            ) : (
-              rightIcon
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
+          {(rightIcon || secureTextEntry) && (
+            <TouchableOpacity 
+              style={baseStyles.rightIconContainer}
+              onPress={secureTextEntry ? togglePasswordVisibility : onRightIconPress}
+            >
+              {secureTextEntry ? (
+                <Text style={baseStyles.eyeIcon}>
+                  {isPasswordVisible ? '👁️' : '👁️‍🗨️'}
+                </Text>
+              ) : (
+                rightIcon
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </TouchableWithoutFeedback>
 
       {error && (
         <Text style={[baseStyles.error, errorStyle]}>{error}</Text>
