@@ -252,6 +252,17 @@ url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = false
 
+[auth.external.google]
+enabled = true
+client_id = "PLACEHOLDER_CLIENT_ID"
+secret = "PLACEHOLDER_CLIENT_SECRET"
+# Local development only - allows testing OAuth without setting up real credentials
+# For production, provide real Google OAuth credentials
+redirect_uri = ""
+url = ""
+# For local development, we skip the nonce check
+skip_nonce_check = true
+
 # Use Firebase Auth as a third-party provider alongside Supabase Auth.
 [auth.third_party.firebase]
 enabled = false
