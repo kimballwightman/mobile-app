@@ -22,8 +22,8 @@ from services.spoonacular_service import (
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("prefect_workflows")
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from root directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../.env'))
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL", "")

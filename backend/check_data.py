@@ -14,8 +14,8 @@ import os
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from root directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../.env'))
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL", "")

@@ -16,8 +16,8 @@ from services.spoonacular_service import (
     fetch_ingredient_data
 )
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from root directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../.env'))
 
 # Spoonacular API configuration
 SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY", "")

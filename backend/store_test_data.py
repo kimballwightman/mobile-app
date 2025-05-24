@@ -32,8 +32,8 @@ from services.spoonacular_service import (
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("store_test_data")
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from root directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../.env'))
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL", "")
@@ -128,13 +128,17 @@ async def save_recipe_directly(recipe_data):
                         ingredient_id = ingredient_response.data[0]["food_id"]
                         
                         # Queue for detailed fetching
-                        queue_data = {
-                            "external_id": ingredient_external_id,
-                            "entity_type": "ingredient",
-                            "priority": 2,  # Medium priority
-                            "status": "pending"
-                        }
-                        supabase.table("food_fetch_queue").insert(queue_data).execute()
+                        try:
+                            queue_data = {
+                                "external_id": ingredient_external_id,
+                                "entity_type": "ingredient",
+                                "priority": 2,  # Medium priority
+                                "status": "pending"
+                            }
+                            supabase.table("food_fetch_queue").insert(queue_data).execute()
+                        except Exception as queue_error:
+                            # Log but don't fail if the queue entry already exists
+                            logger.warning(f"Could not queue ingredient {ingredient_external_id}: {str(queue_error)}")
                 
                 if ingredient_id:
                     # Store only the recipe-ingredient relationship mapping

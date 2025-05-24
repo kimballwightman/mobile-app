@@ -6,8 +6,8 @@ import json
 from pydantic import BaseModel
 from datetime import datetime
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from root directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '../../.env'))
 
 # Get API key from environment
 SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY", "")
