@@ -13,6 +13,7 @@ from supabase import create_client, Client
 import uuid
 import json
 import requests
+from services.food_service import search_recipes, get_recipe_by_id, search_food_ingredients, get_food_ingredient_info, save_recipe_to_database
 
 # Load environment variables
 load_dotenv()
@@ -157,6 +158,24 @@ class HealthDataRequest(BaseModel):
 class UserSyncRequest(BaseModel):
     user_id: str
     email: str
+
+# Models for food and recipe endpoints
+class RecipeSearchRequest(BaseModel):
+    query: str = ""
+    diet: Optional[str] = None
+    intolerances: Optional[str] = None
+    cuisine: Optional[str] = None
+    max_calories: Optional[int] = None
+    min_protein: Optional[int] = None
+    max_carbs: Optional[int] = None
+    max_fat: Optional[int] = None
+    offset: int = 0
+    number: int = 20
+
+class FoodSearchRequest(BaseModel):
+    query: str
+    offset: int = 0
+    number: int = 20
 
 # Helper functions for authentication
 def verify_password(plain_password, hashed_password):
@@ -1336,5 +1355,208 @@ async def verify_user_exists(request: Request = None):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_msg
+        )
+
+# Food and Recipe endpoints
+@app.post("/api/recipes/search")
+async def recipe_search(search_params: RecipeSearchRequest, current_user: str = Depends(get_current_user)):
+    """
+    Search for recipes with filters
+    """
+    try:
+        results = await search_recipes(
+            query=search_params.query,
+            diet=search_params.diet,
+            intolerances=search_params.intolerances,
+            cuisine=search_params.cuisine,
+            max_calories=search_params.max_calories,
+            min_protein=search_params.min_protein,
+            max_carbs=search_params.max_carbs,
+            max_fat=search_params.max_fat,
+            offset=search_params.offset,
+            number=search_params.number
+        )
+        return results
+    except Exception as e:
+        print(f"ERROR: Recipe search failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recipe search error: {str(e)}"
+        )
+
+@app.get("/api/recipes/{recipe_id}")
+async def get_recipe_details(recipe_id: int, current_user: str = Depends(get_current_user)):
+    """
+    Get detailed information about a specific recipe
+    """
+    try:
+        # First check if we have this recipe in our database
+        recipe_response = supabase.table("recipes").select("*").eq("external_id", str(recipe_id)).execute()
+        
+        if recipe_response.data:
+            # Recipe exists in our database
+            recipe_data = recipe_response.data[0]
+            
+            # Get recipe foods (ingredients)
+            foods_response = supabase.table("recipe_foods") \
+                .select("*, foods(*)") \
+                .eq("recipe_id", recipe_data["recipe_id"]) \
+                .execute()
+                
+            recipe_data["ingredients"] = foods_response.data if foods_response.data else []
+            
+            return recipe_data
+        else:
+            # Fetch from Spoonacular and save to our database
+            recipe_data = await get_recipe_by_id(recipe_id)
+            
+            # Save to database for future use
+            local_recipe_id = await save_recipe_to_database(recipe_data)
+            
+            # Add local ID to the response
+            recipe_data["local_recipe_id"] = local_recipe_id
+            
+            return recipe_data
+    except Exception as e:
+        print(f"ERROR: Failed to get recipe details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recipe details error: {str(e)}"
+        )
+
+@app.post("/api/foods/search")
+async def food_search(search_params: FoodSearchRequest, current_user: str = Depends(get_current_user)):
+    """
+    Search for food ingredients
+    """
+    try:
+        results = await search_food_ingredients(
+            query=search_params.query,
+            offset=search_params.offset,
+            number=search_params.number
+        )
+        return results
+    except Exception as e:
+        print(f"ERROR: Food search failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Food search error: {str(e)}"
+        )
+
+@app.get("/api/foods/{food_id}")
+async def get_food_details(food_id: int, amount: float = 100, unit: str = "g", current_user: str = Depends(get_current_user)):
+    """
+    Get detailed information about a specific food ingredient
+    """
+    try:
+        # First check if we have this food in our database
+        food_response = supabase.table("foods").select("*").eq("external_id", str(food_id)).execute()
+        
+        if food_response.data:
+            # Food exists in our database
+            return food_response.data[0]
+        else:
+            # Fetch from Spoonacular
+            food_data = await get_food_ingredient_info(food_id, amount, unit)
+            
+            # We could save this to the database here, but would need to extract proper nutrient info
+            # For now, just return the API data
+            return food_data
+    except Exception as e:
+        print(f"ERROR: Failed to get food details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Food details error: {str(e)}"
+        )
+
+@app.get("/api/recipes/feed")
+async def get_recipe_feed(page: int = 1, limit: int = 20, current_user: str = Depends(get_current_user)):
+    """
+    Get a feed of recipes for the Explore tab, with pagination
+    """
+    try:
+        # Calculate offset from page and limit
+        offset = (page - 1) * limit
+        
+        # Try to get recipes from our database first
+        recipe_response = supabase.table("recipes") \
+            .select("*") \
+            .order("created_at", desc=True) \
+            .range(offset, offset + limit - 1) \
+            .execute()
+            
+        recipes = recipe_response.data
+        
+        # If we don't have enough recipes in our database, fetch more from Spoonacular
+        if len(recipes) < limit:
+            # Get user dietary preferences for filtering
+            try:
+                user_prefs = supabase.table("user_preferences").select("*").eq("user_id", current_user).execute()
+                
+                intolerances = None
+                diet = None
+                
+                if user_prefs.data:
+                    # Extract allergies and diets
+                    allergies = user_prefs.data[0].get("allergies", "")
+                    if allergies:
+                        intolerances = allergies.replace(",", ", ")
+                    
+                    diets = user_prefs.data[0].get("diets", [])
+                    if diets and len(diets) > 0:
+                        diet = diets[0]  # Just use the first diet for simplicity
+            except Exception as e:
+                print(f"Warning: Could not get user preferences: {str(e)}")
+                intolerances = None
+                diet = None
+                
+            # Fetch from Spoonacular
+            api_results = await search_recipes(
+                query="", 
+                diet=diet,
+                intolerances=intolerances,
+                offset=0,
+                number=limit - len(recipes)
+            )
+            
+            # Process and save these recipes to our database
+            for api_recipe in api_results.get("results", []):
+                try:
+                    # Check if recipe already exists
+                    existing = supabase.table("recipes").select("recipe_id").eq("external_id", str(api_recipe.get("id", ""))).execute()
+                    
+                    if not existing.data:
+                        # Get full recipe details
+                        full_recipe = await get_recipe_by_id(api_recipe.get("id", 0))
+                        
+                        # Save to database
+                        await save_recipe_to_database(full_recipe)
+                except Exception as recipe_error:
+                    print(f"Warning: Failed to save recipe {api_recipe.get('id', '')}: {str(recipe_error)}")
+            
+            # Get updated recipes from database
+            recipe_response = supabase.table("recipes") \
+                .select("*") \
+                .order("created_at", desc=True) \
+                .range(offset, offset + limit - 1) \
+                .execute()
+                
+            recipes = recipe_response.data
+        
+        # Get total count for pagination
+        count_response = supabase.table("recipes").select("count", count="exact").execute()
+        total_count = count_response.count if hasattr(count_response, 'count') else 0
+        
+        return {
+            "results": recipes,
+            "page": page,
+            "limit": limit,
+            "total": total_count
+        }
+    except Exception as e:
+        print(f"ERROR: Failed to get recipe feed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recipe feed error: {str(e)}"
         )
 

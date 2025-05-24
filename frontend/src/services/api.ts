@@ -870,11 +870,15 @@ const ApiService = {
   // Explore (Meal Discovery) endpoints
   explore: {
     getMeals: (page: number = 1, limit: number = 20) => 
-      api.get(`/recipes/feed?page=${page}&limit=${limit}`),
+      api.get(`/api/recipes/feed?page=${page}&limit=${limit}`),
     searchMeals: (query: string, filters: any = {}) => 
-      api.get('/recipes/search', { params: { query, ...filters } }),
+      api.post('/api/recipes/search', { query, ...filters }),
     getMealDetails: (mealId: string) => 
-      api.get(`/recipes/${mealId}`),
+      api.get(`/api/recipes/${mealId}`),
+    searchFoods: (query: string, offset: number = 0, limit: number = 20) =>
+      api.post('/api/foods/search', { query, offset, number: limit }),
+    getFoodDetails: (foodId: string, amount: number = 100, unit: string = 'g') =>
+      api.get(`/api/foods/${foodId}?amount=${amount}&unit=${unit}`),
   },
   
   // Meal Planning endpoints
