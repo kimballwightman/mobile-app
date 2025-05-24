@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import ScreenContainer from '../../components/ScreenContainer';
 import Header from '../../components/Header';
+import SideDrawer from '../../components/SideDrawer';
+import { useAuth } from '../../context/AuthContext';
 import theme from '../../styles/theme';
 
 // Define the navigation props
@@ -12,11 +14,15 @@ type DashboardScreenProps = {
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const { user } = useAuth();
 
   // Profile icon (placeholder)
   const ProfileIcon = () => (
     <View style={styles.profileIconContainer}>
-      <Text style={styles.profileIconText}>👤</Text>
+      <Text style={styles.profileIconText}>
+        {user?.email?.charAt(0).toUpperCase() || '👤'}
+      </Text>
     </View>
   );
 
@@ -36,8 +42,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   const handleOpenProfile = () => {
-    // Will open side drawer in the future
-    console.log('Open profile/settings');
+    // Open the side drawer
+    setDrawerVisible(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerVisible(false);
   };
 
   const handleOpenNotifications = () => {
@@ -45,122 +55,131 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <ScreenContainer
-      refreshing={refreshing}
-      onRefresh={handleRefresh}
-    >
-      <Header 
-        title="Dashboard" 
-        leftIcon={<ProfileIcon />}
-        rightIcon={<NotificationsIcon />}
-        onPressLeft={handleOpenProfile}
-        onPressRight={handleOpenNotifications}
+    <>
+      <ScreenContainer
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+      >
+        <Header 
+          title="Dashboard" 
+          leftIcon={<ProfileIcon />}
+          rightIcon={<NotificationsIcon />}
+          onPressLeft={handleOpenProfile}
+          onPressRight={handleOpenNotifications}
+        />
+
+        {/* Date selector */}
+        <View style={styles.dateSelector}>
+          <TouchableOpacity style={styles.dateArrow}>
+            <Text style={styles.dateArrowText}>◀</Text>
+          </TouchableOpacity>
+          <Text style={styles.dateText}>Today, Oct 7</Text>
+          <TouchableOpacity style={styles.dateArrow}>
+            <Text style={styles.dateArrowText}>▶</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Nutrient Summary */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Daily Summary</Text>
+          <View style={styles.nutrientBar}>
+            <View style={styles.nutrientBarLabel}>
+              <Text style={styles.nutrientLabel}>Calories</Text>
+              <Text style={styles.nutrientValue}>1,450 / 2,000 kcal</Text>
+            </View>
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBar, { width: '72.5%' }]} />
+            </View>
+          </View>
+
+          <View style={styles.macrosContainer}>
+            <View style={styles.macroItem}>
+              <Text style={styles.macroLabel}>Carbs</Text>
+              <Text style={styles.macroValue}>148g</Text>
+              <View style={styles.miniProgressContainer}>
+                <View style={[styles.miniProgress, { width: '80%', backgroundColor: '#3b82f6' }]} />
+              </View>
+            </View>
+            <View style={styles.macroItem}>
+              <Text style={styles.macroLabel}>Protein</Text>
+              <Text style={styles.macroValue}>95g</Text>
+              <View style={styles.miniProgressContainer}>
+                <View style={[styles.miniProgress, { width: '60%', backgroundColor: '#22c55e' }]} />
+              </View>
+            </View>
+            <View style={styles.macroItem}>
+              <Text style={styles.macroLabel}>Fat</Text>
+              <Text style={styles.macroValue}>52g</Text>
+              <View style={styles.miniProgressContainer}>
+                <View style={[styles.miniProgress, { width: '70%', backgroundColor: '#f97316' }]} />
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Meal & Workout Tiles */}
+        <Text style={styles.sectionTitle}>Today's Plan</Text>
+        <View style={styles.card}>
+          <View style={styles.mealTile}>
+            <View style={styles.mealTimeContainer}>
+              <Text style={styles.mealTime}>8:00 AM</Text>
+            </View>
+            <View style={styles.mealInfo}>
+              <Text style={styles.mealName}>Breakfast</Text>
+              <Text style={styles.mealDescription}>Avocado Toast with Eggs</Text>
+            </View>
+            <View style={styles.mealActions}>
+              <TouchableOpacity style={styles.mealButton}>
+                <Text style={styles.mealButtonText}>Log</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.mealTile}>
+            <View style={styles.mealTimeContainer}>
+              <Text style={styles.mealTime}>12:30 PM</Text>
+            </View>
+            <View style={styles.mealInfo}>
+              <Text style={styles.mealName}>Lunch</Text>
+              <Text style={styles.mealDescription}>Chicken Salad Bowl</Text>
+            </View>
+            <View style={styles.mealActions}>
+              <TouchableOpacity style={styles.mealButton}>
+                <Text style={styles.mealButtonText}>Log</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.mealTile}>
+            <View style={styles.mealTimeContainer}>
+              <Text style={styles.mealTime}>5:30 PM</Text>
+            </View>
+            <View style={styles.mealInfo}>
+              <Text style={styles.mealName}>Workout</Text>
+              <Text style={styles.mealDescription}>Upper Body Strength</Text>
+            </View>
+            <View style={styles.mealActions}>
+              <TouchableOpacity style={styles.mealButton}>
+                <Text style={styles.mealButtonText}>Log</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Weekly Trends */}
+        <Text style={styles.sectionTitle}>Weekly Trends</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardSubtext}>Coming soon</Text>
+        </View>
+      </ScreenContainer>
+
+      {/* Side Drawer */}
+      <SideDrawer 
+        visible={drawerVisible} 
+        onClose={handleCloseDrawer} 
+        navigation={navigation} 
       />
-
-      {/* Date selector */}
-      <View style={styles.dateSelector}>
-        <TouchableOpacity style={styles.dateArrow}>
-          <Text style={styles.dateArrowText}>◀</Text>
-        </TouchableOpacity>
-        <Text style={styles.dateText}>Today, Oct 7</Text>
-        <TouchableOpacity style={styles.dateArrow}>
-          <Text style={styles.dateArrowText}>▶</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Nutrient Summary */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Daily Summary</Text>
-        <View style={styles.nutrientBar}>
-          <View style={styles.nutrientBarLabel}>
-            <Text style={styles.nutrientLabel}>Calories</Text>
-            <Text style={styles.nutrientValue}>1,450 / 2,000 kcal</Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: '72.5%' }]} />
-          </View>
-        </View>
-
-        <View style={styles.macrosContainer}>
-          <View style={styles.macroItem}>
-            <Text style={styles.macroLabel}>Carbs</Text>
-            <Text style={styles.macroValue}>148g</Text>
-            <View style={styles.miniProgressContainer}>
-              <View style={[styles.miniProgress, { width: '80%', backgroundColor: '#3b82f6' }]} />
-            </View>
-          </View>
-          <View style={styles.macroItem}>
-            <Text style={styles.macroLabel}>Protein</Text>
-            <Text style={styles.macroValue}>95g</Text>
-            <View style={styles.miniProgressContainer}>
-              <View style={[styles.miniProgress, { width: '60%', backgroundColor: '#22c55e' }]} />
-            </View>
-          </View>
-          <View style={styles.macroItem}>
-            <Text style={styles.macroLabel}>Fat</Text>
-            <Text style={styles.macroValue}>52g</Text>
-            <View style={styles.miniProgressContainer}>
-              <View style={[styles.miniProgress, { width: '70%', backgroundColor: '#f97316' }]} />
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Meal & Workout Tiles */}
-      <Text style={styles.sectionTitle}>Today's Plan</Text>
-      <View style={styles.card}>
-        <View style={styles.mealTile}>
-          <View style={styles.mealTimeContainer}>
-            <Text style={styles.mealTime}>8:00 AM</Text>
-          </View>
-          <View style={styles.mealInfo}>
-            <Text style={styles.mealName}>Breakfast</Text>
-            <Text style={styles.mealDescription}>Avocado Toast with Eggs</Text>
-          </View>
-          <View style={styles.mealActions}>
-            <TouchableOpacity style={styles.mealButton}>
-              <Text style={styles.mealButtonText}>Log</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.mealTile}>
-          <View style={styles.mealTimeContainer}>
-            <Text style={styles.mealTime}>12:30 PM</Text>
-          </View>
-          <View style={styles.mealInfo}>
-            <Text style={styles.mealName}>Lunch</Text>
-            <Text style={styles.mealDescription}>Chicken Salad Bowl</Text>
-          </View>
-          <View style={styles.mealActions}>
-            <TouchableOpacity style={styles.mealButton}>
-              <Text style={styles.mealButtonText}>Log</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.mealTile}>
-          <View style={styles.mealTimeContainer}>
-            <Text style={styles.mealTime}>5:30 PM</Text>
-          </View>
-          <View style={styles.mealInfo}>
-            <Text style={styles.mealName}>Workout</Text>
-            <Text style={styles.mealDescription}>Upper Body Strength</Text>
-          </View>
-          <View style={styles.mealActions}>
-            <TouchableOpacity style={styles.mealButton}>
-              <Text style={styles.mealButtonText}>Log</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {/* Weekly Trends */}
-      <Text style={styles.sectionTitle}>Weekly Trends</Text>
-      <View style={styles.card}>
-        <Text style={styles.cardSubtext}>Coming soon</Text>
-      </View>
-    </ScreenContainer>
+    </>
   );
 };
 

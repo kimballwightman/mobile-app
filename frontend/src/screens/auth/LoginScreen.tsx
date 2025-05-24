@@ -11,12 +11,15 @@ import {
   SafeAreaView,
   Alert,
   Keyboard,
+  Linking,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import theme from '../../styles/theme';
 import Button from '../../components/Button';
 import InputField from '../../components/InputField';
+import { useAuth } from '../../context/AuthContext';
 import ApiService from '../../services/api';
+import InAppBrowser from 'react-native-inappbrowser-reborn';
 
 // Define the navigation props
 type AuthStackParamList = {
@@ -34,6 +37,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const { login, googleLogin, appleLogin } = useAuth();
 
   // Ensure any keyboard dismissal due to navigation is handled
   useEffect(() => {
@@ -79,58 +83,117 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       setIsLoading(true);
       setError(null);
 
-      // Attempt to login using API service
-      try {
-        const response = await ApiService.auth.login(email, password);
-        
-        // In a real app, you would store the tokens using secure storage
-        console.log('Login successful', response.data);
-        
-        // TODO: Store tokens and navigate to the main app
-        
-      } catch (apiError: any) {
-        // Handle specific API errors
-        if (apiError.response) {
-          // Server responded with a status code outside of 2xx range
-          switch (apiError.response.status) {
-            case 401:
-              setError('Invalid email or password');
-              break;
-            case 404:
-              setError('Account not found');
-              break;
-            case 429:
-              setError('Too many login attempts. Please try again later.');
-              break;
-            default:
-              setError('Login failed. Please try again.');
-          }
-        } else if (apiError.request) {
-          // No response received
-          setError('Server not responding. Check your connection.');
-        } else {
-          // Something else happened while setting up the request
-          setError('Login error. Please try again.');
-        }
-        console.error('API error:', apiError);
-      }
+      // Attempt to login using the auth context
+      await login(email, password);
       
+    } catch (apiError: any) {
+      // Handle specific API errors
+      if (apiError.response) {
+        // Server responded with a status code outside of 2xx range
+        switch (apiError.response.status) {
+          case 401:
+            setError('Invalid email or password');
+            break;
+          case 404:
+            setError('Account not found');
+            break;
+          case 429:
+            setError('Too many login attempts. Please try again later.');
+            break;
+          default:
+            setError('Login failed. Please try again.');
+        }
+      } else if (apiError.request) {
+        // No response received
+        setError('Server not responding. Check your connection.');
+      } else {
+        // Something else happened while setting up the request
+        setError('Login error. Please try again.');
+      }
+      console.error('API error:', apiError);
+    } finally {
       setIsLoading(false);
-    } catch (err) {
-      setIsLoading(false);
-      setError('An unexpected error occurred. Please try again.');
-      console.error('Login error:', err);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth login
-    Alert.alert('Google Login', 'Google login not implemented yet');
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Get the OAuth URL
+      const url = await ApiService.auth.googleLogin();
+      
+      // Check if InAppBrowser is available
+      if (await InAppBrowser.isAvailable()) {
+        // Open URL in in-app browser with minimal configuration
+        const result = await InAppBrowser.openAuth(url, 'nutriplan://auth/callback', {
+          // iOS Properties
+          dismissButtonStyle: 'cancel',
+          // Android Properties
+          showTitle: true,
+          enableUrlBarHiding: true,
+          forceCloseOnRedirection: true,
+        });
+        
+        if (result.type === 'success') {
+          console.log('Authentication successful');
+        }
+      } else {
+        // Fallback to opening in system browser
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          throw new Error('Cannot open Google authentication URL');
+        }
+      }
+    } catch (error: any) {
+      console.error('Google login error:', error);
+      setError('Google login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleAppleLogin = () => {
-    // TODO: Implement Apple OAuth login
-    Alert.alert('Apple Login', 'Apple login not implemented yet');
+  const handleAppleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Get the OAuth URL
+      const url = await ApiService.auth.appleLogin();
+      
+      // Check if InAppBrowser is available
+      if (await InAppBrowser.isAvailable()) {
+        // Open URL in in-app browser with minimal configuration
+        const result = await InAppBrowser.openAuth(url, 'nutriplan://auth/callback', {
+          // iOS Properties
+          dismissButtonStyle: 'cancel',
+          // Android Properties
+          showTitle: true,
+          enableUrlBarHiding: true,
+          forceCloseOnRedirection: true,
+        });
+        
+        if (result.type === 'success') {
+          console.log('Authentication successful');
+        }
+      } else {
+        // Fallback to opening in system browser
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          throw new Error('Cannot open Apple authentication URL');
+        }
+      }
+    } catch (error: any) {
+      console.error('Apple login error:', error);
+      setError('Apple login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const navigateToSignup = () => {
@@ -211,6 +274,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               loading={isLoading}
               fullWidth
               style={styles.loginButton}
+            />
+
+            {/* Test Login Button - Remove in production */}
+            <Button
+              title="Test Login (Dev Only)"
+              onPress={() => {
+                setEmail('test@example.com');
+                setPassword('password123');
+                setTimeout(() => handleLogin(), 100);
+              }}
+              variant="outline"
+              fullWidth
+              style={styles.socialButton}
             />
 
             <View style={styles.dividerContainer}>

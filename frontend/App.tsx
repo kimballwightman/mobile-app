@@ -5,6 +5,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+// Import auth context
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+
 // Import auth screens
 import LoginScreen from './src/screens/auth/LoginScreen';
 import SignupScreen from './src/screens/auth/SignupScreen';
@@ -16,6 +19,9 @@ import ExploreScreen from './src/screens/explore/ExploreScreen';
 import PlanScreen from './src/screens/plan/PlanScreen';
 import PantryScreen from './src/screens/pantry/PantryScreen';
 
+// Import settings screens
+import ProfileAccountScreen from './src/screens/settings/ProfileAccountScreen';
+
 // Import components
 import TabBarIcon from './src/components/TabBarIcon';
 
@@ -24,6 +30,17 @@ import { navigationRef } from './src/navigation/navigationRef';
 
 // Import theme
 import theme from './src/styles/theme';
+
+// Import onboarding screens
+import DefineGoalScreen from './src/screens/onboarding/DefineGoalScreen';
+import ConnectToAppleHealthScreen from './src/screens/onboarding/ConnectToAppleHealthScreen';
+import UserInfoScreen from './src/screens/onboarding/UserInfoScreen';
+import WorkoutsPerWeekScreen from './src/screens/onboarding/WorkoutsPerWeekScreen';
+import BodyFatScreen from './src/screens/onboarding/BodyFatScreen';
+import NutritionalGoalsScreen from './src/screens/onboarding/NutritionalGoalsScreen';
+import BudgetScreen from './src/screens/onboarding/BudgetScreen';
+import AllergiesScreen from './src/screens/onboarding/AllergiesScreen';
+import CompleteOnboardingScreen from './src/screens/onboarding/CompleteOnboardingScreen';
 
 // Define our stack navigator types
 type AuthStackParamList = {
@@ -44,10 +61,20 @@ type OnboardingStackParamList = {
   CompleteOnboarding: undefined;
 };
 
+type SettingsStackParamList = {
+  ProfileAccount: undefined;
+  Integrations: undefined;
+  GoalsPreferences: undefined;
+  NotificationSettings: undefined;
+  PaymentSettings: undefined;
+};
+
 type RootStackParamList = {
   Auth: undefined;
   Onboarding: undefined;
   Main: undefined;
+  MainTabs: undefined;
+  Settings: undefined;
 };
 
 type MainTabParamList = {
@@ -55,49 +82,31 @@ type MainTabParamList = {
   Plan: undefined;
   Explore: undefined;
   Pantry: undefined;
+  Settings: undefined;
 };
 
 // Create our navigators
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
+const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
-// Placeholder components for our onboarding screens
-const DefineGoalScreen = () => (
-  <View style={styles.screenContainer}><Text>Define Goal Screen</Text></View>
+// Placeholder components for settings screens
+const IntegrationsScreen = () => (
+  <View style={styles.screenContainer}><Text>Integrations Screen</Text></View>
 );
 
-const ConnectToAppleHealthScreen = () => (
-  <View style={styles.screenContainer}><Text>Connect to Apple Health Screen</Text></View>
+const GoalsPreferencesScreen = () => (
+  <View style={styles.screenContainer}><Text>Goals & Preferences Screen</Text></View>
 );
 
-const UserInfoScreen = () => (
-  <View style={styles.screenContainer}><Text>User Info Screen</Text></View>
+const NotificationSettingsScreen = () => (
+  <View style={styles.screenContainer}><Text>Notification Settings Screen</Text></View>
 );
 
-const WorkoutsPerWeekScreen = () => (
-  <View style={styles.screenContainer}><Text>Workouts Per Week Screen</Text></View>
-);
-
-const BodyFatScreen = () => (
-  <View style={styles.screenContainer}><Text>Body Fat Screen</Text></View>
-);
-
-const NutritionalGoalsScreen = () => (
-  <View style={styles.screenContainer}><Text>Nutritional Goals Screen</Text></View>
-);
-
-const BudgetScreen = () => (
-  <View style={styles.screenContainer}><Text>Budget Screen</Text></View>
-);
-
-const AllergiesScreen = () => (
-  <View style={styles.screenContainer}><Text>Allergies Screen</Text></View>
-);
-
-const CompleteOnboardingScreen = () => (
-  <View style={styles.screenContainer}><Text>Complete Onboarding Screen</Text></View>
+const PaymentSettingsScreen = () => (
+  <View style={styles.screenContainer}><Text>Payment Settings Screen</Text></View>
 );
 
 // Auth Navigator
@@ -131,10 +140,13 @@ const AuthNavigator = () => (
 );
 
 // Onboarding Navigator
-const OnboardingNavigator = () => (
+const OnboardingStackScreens = () => (
   <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>
     <OnboardingStack.Screen name="DefineGoal" component={DefineGoalScreen} />
-    <OnboardingStack.Screen name="ConnectToAppleHealth" component={ConnectToAppleHealthScreen} />
+    <OnboardingStack.Screen
+      name="ConnectToAppleHealth"
+      component={ConnectToAppleHealthScreen}
+    />
     <OnboardingStack.Screen name="UserInfo" component={UserInfoScreen} />
     <OnboardingStack.Screen name="WorkoutsPerWeek" component={WorkoutsPerWeekScreen} />
     <OnboardingStack.Screen name="BodyFat" component={BodyFatScreen} />
@@ -143,6 +155,24 @@ const OnboardingNavigator = () => (
     <OnboardingStack.Screen name="Allergies" component={AllergiesScreen} />
     <OnboardingStack.Screen name="CompleteOnboarding" component={CompleteOnboardingScreen} />
   </OnboardingStack.Navigator>
+);
+
+// Settings Navigator
+const SettingsNavigator = () => (
+  <SettingsStack.Navigator 
+    screenOptions={{ 
+      headerShown: false,
+      animation: 'slide_from_right',
+      gestureEnabled: true,
+      gestureDirection: 'horizontal',
+    }}
+  >
+    <SettingsStack.Screen name="ProfileAccount" component={ProfileAccountScreen} />
+    <SettingsStack.Screen name="Integrations" component={IntegrationsScreen} />
+    <SettingsStack.Screen name="GoalsPreferences" component={GoalsPreferencesScreen} />
+    <SettingsStack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+    <SettingsStack.Screen name="PaymentSettings" component={PaymentSettingsScreen} />
+  </SettingsStack.Navigator>
 );
 
 // Main Tab Navigator
@@ -195,36 +225,56 @@ const MainNavigator = () => (
   </MainTab.Navigator>
 );
 
+// Combined Stack for Main Navigation with Settings
+const MainStackWithSettings = () => (
+  <RootStack.Navigator screenOptions={{ headerShown: false }}>
+    <RootStack.Screen name="MainTabs" component={MainNavigator} />
+    <RootStack.Screen 
+      name="Settings" 
+      component={SettingsNavigator}
+      options={{
+        animation: 'slide_from_right',
+        presentation: 'card',
+      }}
+    />
+  </RootStack.Navigator>
+);
+
+// Main Navigation Component
+const AppNavigator = () => {
+  const { isAuthenticated, isLoading, isOnboarded } = useAuth();
+  
+  // Show a loading indicator while authentication state is being determined
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+  
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        {!isAuthenticated ? (
+          <RootStack.Screen name="Auth" component={AuthNavigator} />
+        ) : !isOnboarded ? (
+          <RootStack.Screen name="Onboarding" component={OnboardingStackScreens} />
+        ) : (
+          <RootStack.Screen name="Main" component={MainStackWithSettings} />
+        )}
+      </RootStack.Navigator>
+    </NavigationContainer>
+  );
+};
+
 // Main App
 const App = () => {
-  // We'll simulate not being authenticated initially
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isOnboarded, setIsOnboarded] = useState(false);
-  
-  // Normally this would come from a token check or auth service
-  // For demo purposes we'll just use a delay to simulate an auth check
-  useEffect(() => {
-    // This is just for demonstration - you would check for auth tokens here
-    setTimeout(() => {
-      // For development, set to true to bypass auth screens and see the main app
-      setIsAuthenticated(true);  
-      setIsOnboarded(true);     
-    }, 1000);
-  }, []);
-
   return (
     <SafeAreaProvider>
-      <NavigationContainer ref={navigationRef}>
-        <RootStack.Navigator screenOptions={{ headerShown: false }}>
-          {!isAuthenticated ? (
-            <RootStack.Screen name="Auth" component={AuthNavigator} />
-          ) : !isOnboarded ? (
-            <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />
-          ) : (
-            <RootStack.Screen name="Main" component={MainNavigator} />
-          )}
-        </RootStack.Navigator>
-      </NavigationContainer>
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
     </SafeAreaProvider>
   );
 };
@@ -235,6 +285,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center',
     backgroundColor: '#fff'
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
   },
   tabBar: {
     height: 60,
