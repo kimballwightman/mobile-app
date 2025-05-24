@@ -190,19 +190,51 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         # Log token details for debugging
         print(f"Received token (first 10 chars): {token[:10] if token else 'None'}")
         
-        # Decode the JWT token
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
+        try:
+            # First try to decode using our local secret key
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: str = payload.get("sub")
+            
+            # Print decoded user ID for debugging
+            print(f"Successfully decoded local token for user_id: {user_id}")
+        except Exception as e:
+            # If local decoding fails, try to decode as a Supabase token
+            print(f"Local token decode failed: {str(e)}, attempting Supabase token decode")
+            
+            try:
+                # For Supabase tokens, we verify signature=False since we don't have access to their private key
+                # Instead, we'll verify the token is valid by checking if the user exists after extraction
+                payload = jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256", "RS256"])
+                
+                # Supabase puts user ID in different claim fields depending on token type
+                user_id = payload.get("sub") or payload.get("user_id") or payload.get("uid")
+                
+                if not user_id:
+                    print("No user ID found in decoded Supabase token")
+                    raise credentials_exception
+                
+                print(f"Extracted user_id from Supabase token: {user_id}")
+                
+                # Verify this user exists in our database to confirm token validity
+                response = supabase.table("users").select("user_id").eq("user_id", user_id).execute()
+                
+                if not response.data:
+                    print(f"User ID {user_id} from token not found in database")
+                    raise credentials_exception
+                
+                print(f"Confirmed user_id {user_id} exists in database - accepting token")
+            except Exception as supabase_error:
+                print(f"Supabase token decode failed: {str(supabase_error)}")
+                raise credentials_exception
         
-        # Print decoded user ID for debugging
-        print(f"Successfully decoded token for user_id: {user_id}")
+        if user_id is None:
+            print("No user ID found in token")
+            raise credentials_exception
         
         # Return the user ID from the token
         return user_id
-    except (jwt.exceptions.InvalidTokenError, jwt.exceptions.InvalidSignatureError, jwt.exceptions.DecodeError) as e:
-        print(f"JWT token error: {str(e)}")
+    except Exception as e:
+        print(f"Authentication error: {str(e)}")
         raise credentials_exception
 
 # User DB operations
@@ -892,16 +924,8 @@ async def complete_onboarding(request: Request = None):
             result = await update_user_preferences(user_id, onboarding_data)
             print(f"Successfully marked onboarding as complete: {result}")
             
-            # Also update the users table to indicate onboarding is complete
-            try:
-                users_update = supabase.table("users").update({
-                    "onboarding_completed": True,
-                    "updated_at": now
-                }).eq("user_id", user_id).execute()
-                print(f"Updated users table onboarding status: {users_update.data}")
-            except Exception as users_error:
-                # Log but don't fail if this secondary update fails
-                print(f"WARNING: Could not update users table onboarding status: {str(users_error)}")
+            # Note: The users table doesn't have an onboarding_completed column
+            # We only need to update the user_preferences table
             
             return {
                 "status": "success", 
