@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ApiService from '../services/api';
+import ApiService, { BASE_URL } from '../services/api';
 import { supabase } from '../services/supabase';
 import { Linking } from 'react-native';
 import { User } from '@supabase/supabase-js';
@@ -66,33 +66,111 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
-          // Verify the user exists in the database before proceeding
+          // Ensure token is set in AsyncStorage BEFORE any API calls
+          await AsyncStorage.setItem(TOKEN_KEY, session.access_token);
+          await AsyncStorage.setItem(REFRESH_TOKEN_KEY, session.refresh_token);
+          if (session.user) {
+            await AsyncStorage.setItem(USER_KEY, JSON.stringify(session.user));
+          }
+          
+          console.log("Session retrieved with token:", session.access_token?.substring(0, 10));
+          
+          // Verify the session is valid by getting the current user
           try {
-            const response = await ApiService.user.verifyUserExists();
+            // First ensure user record exists in database
+            const verifyResponse = await ApiService.user.verifyUserExists();
             
-            if (response.data.exists) {
+            if (verifyResponse.data.exists) {
               setIsAuthenticated(true);
               setUser(session.user);
               
-              // Store session info in AsyncStorage
-              await AsyncStorage.setItem(TOKEN_KEY, session.access_token);
-              await AsyncStorage.setItem(REFRESH_TOKEN_KEY, session.refresh_token);
-              if (session.user) {
-                await AsyncStorage.setItem(USER_KEY, JSON.stringify(session.user));
-              }
+              // Check onboarding status sequence:
+              // 1. Check AsyncStorage first (fastest)
+              const storageStatus = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+              console.log("AsyncStorage onboarding status:", storageStatus);
               
-              // Check if user has completed onboarding
-              const onboardingStatus = await checkOnboardingStatus();
-              setIsOnboarded(onboardingStatus);
+              if (storageStatus === 'true') {
+                console.log("Using cached onboarding status: completed");
+                setIsOnboarded(true);
+              } else {
+                // 2. Try profile API with the newly set token (most accurate)
+                try {
+                  console.log("Making direct API call to check onboarding status");
+                  const headers = {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                  };
+                  
+                  const onboardingResponse = await fetch(`${BASE_URL}/api/user/profile`, {
+                    method: 'GET',
+                    headers
+                  });
+                  
+                  if (onboardingResponse.ok) {
+                    const userData = await onboardingResponse.json();
+                    console.log("Profile API response:", userData);
+                    
+                    // Check if user completed onboarding
+                    if (userData && userData.onboarding_completed === true) {
+                      console.log("Onboarding IS complete from profile API");
+                      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+                      setIsOnboarded(true);
+                    } else {
+                      console.log("Onboarding is NOT complete from profile API");
+                      setIsOnboarded(false);
+                    }
+                  } else {
+                    console.log("Profile API error:", await onboardingResponse.text());
+                    
+                    // 3. Try dedicated onboarding status endpoint
+                    const onboardingStatus = await checkOnboardingStatus();
+                    setIsOnboarded(onboardingStatus);
+                  }
+                } catch (dbError) {
+                  console.error("Error checking onboarding status directly:", dbError);
+                  
+                  // Fall back to regular check
+                  const onboardingStatus = await checkOnboardingStatus();
+                  setIsOnboarded(onboardingStatus);
+                }
+              }
             } else {
-              // User doesn't exist in database, sign out
               console.log('User not found in database, signing out');
               await performLogout();
             }
           } catch (verifyError) {
             console.error('Error verifying user exists:', verifyError);
-            // If we can't verify, assume user doesn't exist and sign out
-            await performLogout();
+            
+            // If token is invalid, try to refresh the session
+            try {
+              console.log("Attempting to refresh expired session");
+              const { data } = await supabase.auth.refreshSession();
+              if (data.session) {
+                console.log("Session refreshed successfully");
+                // Store the new tokens
+                await AsyncStorage.setItem(TOKEN_KEY, data.session.access_token);
+                await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.session.refresh_token);
+                
+                // Try verification again with new token
+                const retryVerify = await ApiService.user.verifyUserExists();
+                if (retryVerify.data.exists) {
+                  console.log("User verified after token refresh");
+                  setIsAuthenticated(true);
+                  setUser(data.session.user);
+                  
+                  // Check onboarding with the new token
+                  const onboardingStatus = await checkOnboardingStatus();
+                  setIsOnboarded(onboardingStatus);
+                } else {
+                  await performLogout();
+                }
+              } else {
+                await performLogout();
+              }
+            } catch (refreshError) {
+              console.error("Session refresh failed:", refreshError);
+              await performLogout();
+            }
           }
         }
       } catch (error) {
@@ -149,19 +227,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await AsyncStorage.setItem(USER_KEY, JSON.stringify(session.user));
             }
             
-            // For brand new users who just created an account, force onboarding regardless of backend status
-            const isNewUser = (event === 'SIGNED_UP' as any) || 
-                           ((event === 'SIGNED_IN' as any) && 
-                            session.user?.app_metadata?.provider === 'email' && 
-                            session.user?.created_at && 
-                            (new Date().getTime() - new Date(session.user.created_at).getTime() < 60000)); // Within last minute
-            
-            if (isNewUser) {
-              console.log("New user detected, forcing onboarding flow");
+            // Only force onboarding for actual new signups
+            // Don't force onboarding for regular sign-ins
+            if (event === 'SIGNED_UP' as any) {
+              console.log("New signup detected, starting onboarding flow");
               await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'false');
               setIsOnboarded(false);
             } else {
-              // Check existing users normally
+              // Check existing users' onboarding status from backend
               const onboardingStatus = await checkOnboardingStatus();
               console.log(`User signed in, onboarding status from backend: ${onboardingStatus}`);
               setIsOnboarded(onboardingStatus);
@@ -278,6 +351,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setIsAuthenticated(true);
       setUser(userData);
+      
+      // Check onboarding status for returning user
+      try {
+        // First check AsyncStorage for fastest response
+        const storageStatus = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        console.log(`Login: AsyncStorage onboarding status: ${storageStatus}`);
+        
+        if (storageStatus === 'true') {
+          console.log("Login: Using cached onboarding status (completed)");
+          setIsOnboarded(true);
+        } else {
+          // Get onboarding status from backend
+          const onboardingStatus = await checkOnboardingStatus();
+          console.log(`Login: Backend onboarding status: ${onboardingStatus}`);
+          setIsOnboarded(onboardingStatus);
+        }
+      } catch (onboardingError) {
+        console.error('Error checking onboarding status during login:', onboardingError);
+        // Default to checking with backend if there's an error
+        const onboardingStatus = await checkOnboardingStatus();
+        setIsOnboarded(onboardingStatus);
+      }
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -372,34 +467,98 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Check if user has completed onboarding
   const checkOnboardingStatus = async (): Promise<boolean> => {
     try {
-      // First check AsyncStorage for faster response
+      console.log("Checking onboarding status...");
+      
+      if (!isAuthenticated) {
+        console.log("User not authenticated, returning false for onboarding status");
+        return false;
+      }
+      
+      // First check AsyncStorage for fastest response
       const storageStatus = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+      console.log(`AsyncStorage onboarding status: ${storageStatus}`);
+      
       if (storageStatus === 'true') {
+        console.log("Using cached onboarding status (completed)");
         return true;
       }
       
-      // If not in AsyncStorage, check the database
-      if (isAuthenticated) {
-        try {
-          // Get user profile from database
-          const response = await ApiService.user.getProfile();
-          console.log("Onboarding API response:", response?.data);
-          
-          // Check if onboarding_completed is true in the response
-          const isCompleted = response?.data?.onboarding_completed === true;
-          
-          if (isCompleted) {
-            // Update AsyncStorage for future checks
-            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-            return true;
-          }
-        } catch (error) {
-          console.error('Error checking onboarding status from API:', error);
-          // Continue to return false if API call fails
+      // Get current session to ensure we have the latest token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || !session.access_token) {
+        console.log("No valid session found, forcing token refresh");
+        const { data } = await supabase.auth.refreshSession();
+        if (!data.session) {
+          console.log("Unable to refresh session, returning false");
+          return false;
         }
       }
       
-      return false;
+      // Get the most current token
+      const currentToken = session?.access_token || await AsyncStorage.getItem(TOKEN_KEY);
+      
+      if (!currentToken) {
+        console.log("No auth token available, returning false");
+        return false;
+      }
+      
+      // Try direct API endpoint call with current token
+      try {
+        const headers = {
+          'Authorization': `Bearer ${currentToken}`,
+          'Content-Type': 'application/json'
+        };
+        
+        console.log("Making direct API call to check onboarding status");
+        const response = await fetch(`${BASE_URL}/api/user/profile`, {
+          method: 'GET',
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const isCompleted = data?.onboarding_completed === true;
+          console.log(`Direct API check - Onboarding completed: ${isCompleted}`);
+          
+          // Update AsyncStorage to match backend for future checks
+          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, isCompleted ? 'true' : 'false');
+          
+          return isCompleted;
+        } else {
+          console.log(`Direct API check failed: ${response.status}`);
+          // Continue to fallback method
+        }
+      } catch (directError) {
+        console.error("Direct API call failed:", directError);
+        // Continue to fallback method
+      }
+      
+      // Fallback: Use dedicated API service endpoint
+      try {
+        console.log("Trying API service for onboarding status check");
+        const response = await ApiService.user.checkOnboardingStatus();
+        console.log("Onboarding API response:", response?.data);
+        
+        // Check if onboarding_completed is true in the response
+        const isCompleted = response?.data?.onboarding_completed === true;
+        console.log(`API service onboarding status: ${isCompleted}`);
+        
+        // Update AsyncStorage to match backend for future checks
+        await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, isCompleted ? 'true' : 'false');
+        
+        return isCompleted;
+      } catch (apiError) {
+        console.error('Error checking onboarding status from API service:', apiError);
+        
+        // Final fallback - if we have a cached "true" value, trust it
+        if (storageStatus === 'true') {
+          console.log("Using AsyncStorage fallback: onboarding is complete");
+          return true;
+        }
+        
+        console.log("No reliable source available, assuming onboarding is NOT complete");
+        return false;
+      }
     } catch (error) {
       console.error('Error checking onboarding status:', error);
       return false;
@@ -486,15 +645,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
+      // Get current onboarding status before clearing state
+      const onboardingStatus = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+      
       // Clear local state
       setIsAuthenticated(false);
       setUser(null);
-      setIsOnboarded(false);
+      // Don't reset onboarding status, as we want to remember if user completed onboarding
+      // setIsOnboarded(false);
       
-      // Clear stored tokens
-      await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, ONBOARDING_COMPLETE_KEY]);
+      // Clear stored tokens but preserve onboarding status
+      await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
       
-      console.log('User logged out');
+      // Make sure the onboarding status is preserved
+      if (onboardingStatus) {
+        await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, onboardingStatus);
+      }
+      
+      console.log(`User logged out - preserved onboarding status: ${onboardingStatus}`);
     } catch (error) {
       console.error('Error during logout:', error);
     }

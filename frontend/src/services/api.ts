@@ -12,6 +12,9 @@ const USER_KEY = '@user_data';
 // Define API base URL
 const BASE_URL = 'http://localhost:8000'; // Update for production or different environments
 
+// Export for use in other components
+export { BASE_URL };
+
 // Direct database operations without using service role client (avoids dependencies issues)
 const createUserDbRecord = async (userId: string, email: string) => {
   try {
@@ -263,7 +266,7 @@ const ApiService = {
         if (data.session && data.user) {
           // Sync the user with our backend database
           try {
-            await fetch(`http://localhost:8000/api/user/sync`, {
+            await fetch(`${BASE_URL}/api/user/sync`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -449,6 +452,33 @@ const ApiService = {
         return { data };
       } catch (error) {
         console.error('Error fetching user profile:', error);
+        throw error;
+      }
+    },
+    checkOnboardingStatus: async () => {
+      try {
+        // Get auth headers with current token
+        const headers = await getAuthHeaders();
+        
+        // Call the dedicated backend endpoint for checking onboarding status
+        const response = await fetch(`${BASE_URL}/api/onboarding/status`, {
+          method: 'GET',
+          headers
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error checking onboarding status: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return { 
+          data: {
+            onboarding_completed: data.onboarding_completed,
+            completed_at: data.completed_at
+          }
+        };
+      } catch (error) {
+        console.error('Error checking onboarding status from API:', error);
         throw error;
       }
     },
